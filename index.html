@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SnapNotes – Gestor de Snippets</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f11; --surface: #1a1a1f; --surface2: #222228; --surface3: #2a2a32;
+    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.14);
+    --text: #e8e8ec; --text2: #9090a0; --text3: #5a5a6a;
+    --accent: #7c6bff; --accent2: #9b8dff;
+    --accent-bg: rgba(124,107,255,0.12); --accent-border: rgba(124,107,255,0.35);
+    --green: #4ade80; --red: #f87171; --red-bg: rgba(248,113,113,0.1);
+    --radius: 10px; --radius-sm: 6px;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-size: 14px; }
+
+  /* HEADER */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 16px; height: 52px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .logo { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; color: var(--text); display: flex; align-items: center; gap: 7px; }
+  .logo-icon { width: 26px; height: 26px; background: var(--accent); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .search-wrap { flex: 1; max-width: 360px; position: relative; }
+  .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text3); font-size: 14px; pointer-events: none; }
+  #searchInput { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); padding: 7px 10px 7px 32px; font-size: 13px; outline: none; transition: border-color 0.15s; }
+  #searchInput:focus { border-color: var(--accent-border); }
+  #searchInput::placeholder { color: var(--text3); }
+  .shortcut-hint { font-size: 11px; color: var(--text3); background: var(--surface2); border: 1px solid var(--border); padding: 2px 7px; border-radius: 5px; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+  .header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .btn-icon { background: none; border: 1px solid var(--border); color: var(--text2); border-radius: var(--radius-sm); width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 16px; transition: all 0.15s; }
+  .btn-icon:hover { border-color: var(--border2); color: var(--text); background: var(--surface2); }
+  .btn-primary { background: var(--accent); color: #fff; border: none; border-radius: var(--radius-sm); padding: 0 14px; height: 32px; font-size: 13px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: opacity 0.15s; }
+  .btn-primary:hover { opacity: 0.88; }
+
+  /* LAYOUT */
+  .app-body { display: flex; flex: 1; overflow: hidden; }
+
+  /* SIDEBAR */
+  .sidebar { width: 200px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+  .sidebar-section { padding: 10px 8px 4px; }
+  .sidebar-label { font-size: 10px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text3); padding: 0 6px; margin-bottom: 4px; }
+  .cat-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: var(--radius-sm); cursor: pointer; color: var(--text2); font-size: 13px; transition: all 0.12s; position: relative; }
+  .cat-item:hover { background: var(--surface2); color: var(--text); }
+  .cat-item.active { background: var(--accent-bg); color: var(--accent2); }
+  .cat-item .cat-icon { font-size: 15px; width: 18px; text-align: center; }
+  .cat-count { margin-left: auto; font-size: 11px; color: var(--text3); background: var(--surface2); padding: 1px 6px; border-radius: 20px; }
+  .cat-item.active .cat-count { background: var(--accent-bg); color: var(--accent); }
+  .sidebar-divider { border: none; border-top: 1px solid var(--border); margin: 6px 8px; }
+  .add-cat-btn { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: var(--radius-sm); cursor: pointer; color: var(--text3); font-size: 13px; width: 100%; background: none; border: none; transition: all 0.12s; }
+  .add-cat-btn:hover { color: var(--text2); background: var(--surface2); }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 4px; }
+
+  /* MAIN */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .main-toolbar { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .filter-tab { background: none; border: none; color: var(--text2); font-size: 13px; padding: 4px 10px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.12s; }
+  .filter-tab:hover { background: var(--surface2); color: var(--text); }
+  .filter-tab.active { background: var(--surface2); color: var(--text); }
+
+  /* GRID */
+  .snippets-grid { flex: 1; overflow-y: auto; padding: 14px 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; align-content: start; }
+  .snippets-grid::-webkit-scrollbar { width: 5px; }
+  .snippets-grid::-webkit-scrollbar-track { background: transparent; }
+  .snippets-grid::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 10px; }
+
+  /* CARDS */
+  .snippet-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; cursor: pointer; transition: all 0.15s; display: flex; flex-direction: column; gap: 8px; position: relative; }
+  .snippet-card:hover { border-color: var(--border2); background: var(--surface2); transform: translateY(-1px); }
+  .snippet-card.pinned { border-color: var(--accent-border); }
+  .card-header { display: flex; align-items: flex-start; gap: 8px; }
+  .card-title { font-size: 13px; font-weight: 600; color: var(--text); flex: 1; line-height: 1.3; }
+  .card-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.12s; }
+  .snippet-card:hover .card-actions { opacity: 1; }
+  .card-action-btn { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 2px; border-radius: 4px; transition: all 0.12s; }
+  .card-action-btn:hover { color: var(--text); background: var(--surface3); }
+  .card-content { font-size: 12px; color: var(--text2); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; }
+  .card-footer { display: flex; align-items: center; gap: 6px; }
+  .tag-pill { font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 500; letter-spacing: 0.2px; }
+  .card-date { font-size: 11px; color: var(--text3); margin-left: auto; }
+  .pin-badge { font-size: 10px; color: var(--accent2); position: absolute; top: 10px; right: 10px; }
+
+  /* EMPTY */
+  .empty-state { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; gap: 12px; color: var(--text3); text-align: center; }
+  .empty-state .big-icon { font-size: 40px; margin-bottom: 4px; }
+  .empty-state h3 { font-size: 15px; color: var(--text2); font-weight: 500; }
+  .empty-state p { font-size: 13px; max-width: 280px; line-height: 1.6; }
+
+  /* MODAL */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border2); border-radius: 14px; width: 92%; max-width: 560px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal-header { padding: 16px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .modal-title { font-size: 14px; font-weight: 600; color: var(--text); flex: 1; }
+  .modal-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+  .modal-footer { padding: 14px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-label { font-size: 12px; color: var(--text2); font-weight: 500; }
+  .form-input, .form-textarea, .form-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); font-size: 13px; padding: 9px 12px; outline: none; transition: border-color 0.15s; font-family: inherit; width: 100%; }
+  .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--accent-border); }
+  .form-input::placeholder, .form-textarea::placeholder { color: var(--text3); }
+  .form-textarea { resize: vertical; min-height: 120px; line-height: 1.6; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12.5px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .btn-secondary { background: none; border: 1px solid var(--border2); color: var(--text2); border-radius: var(--radius-sm); padding: 0 14px; height: 34px; font-size: 13px; cursor: pointer; transition: all 0.15s; }
+  .btn-secondary:hover { background: var(--surface2); color: var(--text); }
+  .btn-danger { background: var(--red-bg); border: 1px solid rgba(248,113,113,0.25); color: var(--red); border-radius: var(--radius-sm); padding: 0 14px; height: 34px; font-size: 13px; cursor: pointer; margin-right: auto; transition: opacity 0.15s; }
+  .btn-danger:hover { opacity: 0.8; }
+  .view-content { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace; font-size: 12.5px; line-height: 1.7; white-space: pre-wrap; color: var(--text); max-height: 300px; overflow-y: auto; }
+  .copy-success { font-size: 12px; color: var(--green); display: flex; align-items: center; gap: 5px; opacity: 0; transition: opacity 0.2s; }
+  .copy-success.show { opacity: 1; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 10px 16px; font-size: 13px; color: var(--text); opacity: 0; transition: all 0.25s; z-index: 200; display: flex; align-items: center; gap: 8px; min-width: 200px; text-align: center; justify-content: center; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* CAT colors */
+  .cat-general { background: rgba(144,144,160,0.12); color: #9090a0; }
+  .cat-prompts { background: rgba(124,107,255,0.12); color: #9b8dff; }
+  .cat-trabajo { background: rgba(74,222,128,0.1); color: #4ade80; }
+  .cat-personal { background: rgba(251,191,36,0.1); color: #fbbf24; }
+  .cat-dev { background: rgba(56,189,248,0.1); color: #38bdf8; }
+  .cat-custom { background: rgba(248,113,113,0.1); color: #f87171; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    SnapNotes
+  </div>
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="searchInput" placeholder="Buscar snippet... (Ctrl+K)" autocomplete="off">
+    <span class="shortcut-hint">Ctrl+K</span>
+  </div>
+  <div class="header-actions">
+    <span id="syncStatus" style="font-size:11px;color:var(--text3);white-space:nowrap;transition:color 0.3s;">☁️ Sincronizado</span>
+    <button class="btn-icon" title="Importar backup" onclick="importData()">📥</button>
+    <button class="btn-icon" title="Exportar backup" onclick="exportData()">📤</button>
+    <button class="btn-primary" onclick="openNew()">
+      <span style="font-size:16px;line-height:1">＋</span> Nuevo
+    </button>
+  </div>
+</div>
+
+<div class="app-body">
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Vistas</div>
+      <div class="cat-item active" data-cat="all" onclick="selectCat(this,'all')">
+        <span class="cat-icon">📋</span> Todos
+        <span class="cat-count" id="cnt-all">0</span>
+      </div>
+      <div class="cat-item" data-cat="pinned" onclick="selectCat(this,'pinned')">
+        <span class="cat-icon">📌</span> Fijados
+        <span class="cat-count" id="cnt-pinned">0</span>
+      </div>
+    </div>
+    <hr class="sidebar-divider">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Categorías</div>
+      <div id="catList"></div>
+    </div>
+    <div style="padding: 6px 8px;">
+      <button class="add-cat-btn" onclick="addCategory()">
+        <span style="font-size:16px">＋</span> Categoría
+      </button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="main-toolbar">
+      <button class="filter-tab active" onclick="setSort(this,'recent')">Recientes</button>
+      <button class="filter-tab" onclick="setSort(this,'alpha')">A–Z</button>
+      <button class="filter-tab" onclick="setSort(this,'oldest')">Antiguos</button>
+      <span style="font-size:12px;color:var(--text3);margin-left:6px;" id="countLabel"></span>
+    </div>
+    <div class="snippets-grid" id="snippetsGrid"></div>
+  </div>
+</div>
+
+<!-- MODAL NUEVO/EDITAR -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Nuevo snippet</div>
+      <button class="btn-icon" onclick="closeModal('editModal')" style="border:none;font-size:18px;">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Título *</label>
+        <input type="text" class="form-input" id="fTitle" placeholder="Ej: Prompt de resumen">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Contenido *</label>
+        <textarea class="form-textarea" id="fContent" placeholder="Escribe o pega aquí tu texto, prompt o información..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Categoría</label>
+          <select class="form-select" id="fCat"><option value="General">General</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Etiqueta</label>
+          <input type="text" class="form-input" id="fTag" placeholder="Ej: IA, trabajo...">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="deleteBtn" onclick="deleteSnippet()" style="display:none;">🗑 Eliminar</button>
+      <button class="btn-secondary" onclick="closeModal('editModal')">Cancelar</button>
+      <button class="btn-primary" onclick="saveSnippet()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VER -->
+<div class="modal-overlay" id="viewModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="viewTitle">-</div>
+      <button class="btn-icon" onclick="closeModal('viewModal')" style="border:none;font-size:18px;">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;" id="viewMeta"></div>
+      <div class="view-content" id="viewContent"></div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <button class="btn-primary" onclick="copyView()">📋 Copiar al portapapeles</button>
+        <span class="copy-success" id="copySuccess">✓ ¡Copiado!</span>
+        <button class="btn-secondary" style="margin-left:auto;" onclick="editFromView()">✏️ Editar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP MODAL -->
+<div class="modal-overlay" id="setupModal" style="z-index:200;">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-header">
+      <div class="modal-title">⚡ Configurar SnapNotes</div>
+    </div>
+    <div class="modal-body" style="gap:16px;">
+      <p style="font-size:13px;color:var(--text2);line-height:1.6;">
+        Para guardar tus snippets en la nube necesitas tu <strong style="color:var(--text)">API Key de JSONBin</strong>. Esta clave se guarda solo en tu navegador y nunca se sube a GitHub.
+      </p>
+      <div class="form-group">
+        <label class="form-label">API Key de JSONBin <span style="color:var(--text3)">(empieza con $2a$...)</span></label>
+        <input type="password" class="form-input" id="setupKey" placeholder="$2a$10$..." autocomplete="off">
+      </div>
+      <p style="font-size:12px;color:var(--text3);line-height:1.6;">
+        💡 Encuéntrala en <strong>jsonbin.io → tu perfil → API Keys</strong>
+      </p>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-primary" style="flex:1;" onclick="saveSetup()">✅ Guardar y continuar</button>
+        <button class="btn-secondary" onclick="skipSetup()">Usar sin nube</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
+
+<script>
+// ── JSONBIN CONFIG (leído desde localStorage, nunca en el código) ──
+const JB_BIN = '6a3c713ef5f4af5e292be11f';
+const JB_URL = `https://api.jsonbin.io/v3/b/${JB_BIN}`;
+function getKey() { return localStorage.getItem('snapnotes_jbkey') || ''; }
+
+// ── STATE ──
+let data = { snippets: [], categories: ['General','Prompts','Trabajo','Personal','Dev'] };
+let currentCat = 'all';
+let currentSort = 'recent';
+let editingId = null;
+let viewingId = null;
+let saveTimer = null;
+
+const catColors = { 'General':'cat-general','Prompts':'cat-prompts','Trabajo':'cat-trabajo','Personal':'cat-personal','Dev':'cat-dev' };
+const catIcons  = { 'General':'📂','Prompts':'🤖','Trabajo':'💼','Personal':'🏠','Dev':'💻' };
+function getCatColor(c) { return catColors[c] || 'cat-custom'; }
+function getCatIcon(c)  { return catIcons[c]  || '🏷'; }
+function uid() { return Date.now().toString(36) + Math.random().toString(36).substr(2,5); }
+function esc(t) { return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── SYNC STATUS ──
+function setSyncStatus(status) {
+  const el = document.getElementById('syncStatus');
+  if (!el) return;
+  const map = {
+    idle:    { icon:'☁️',  text:'Sincronizado',      color:'var(--text3)' },
+    saving:  { icon:'🔄',  text:'Guardando...',       color:'var(--text2)' },
+    ok:      { icon:'✅',  text:'Guardado en la nube',color:'var(--green)' },
+    error:   { icon:'⚠️',  text:'Sin conexión',       color:'var(--red)'   },
+    loading: { icon:'⏳',  text:'Cargando...',         color:'var(--text2)' },
+  };
+  const s = map[status] || map.idle;
+  el.textContent = s.icon + ' ' + s.text;
+  el.style.color = s.color;
+}
+
+// ── STORAGE: JSONBIN ──
+async function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    setSyncStatus('saving');
+    try {
+      const res = await fetch(JB_URL, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Master-Key': getKey() },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error(res.status);
+      setSyncStatus('ok');
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    } catch(e) {
+      localStorage.setItem('snapnotes_v2', JSON.stringify(data));
+      setSyncStatus('error');
+      showToast('⚠️ Sin conexión. Guardado localmente como respaldo.');
+    }
+  }, 600); // debounce: espera 600ms antes de guardar
+}
+
+async function load() {
+  setSyncStatus('loading');
+  try {
+    const res = await fetch(JB_URL + '/latest', {
+      headers: { 'X-Master-Key': getKey() }
+    });
+    if (!res.ok) throw new Error(res.status);
+    const json = await res.json();
+    const remote = json.record;
+    if (remote && remote.snippets) {
+      data = remote;
+    } else {
+      seedIfEmpty();
+      await save();
+    }
+    setSyncStatus('idle');
+  } catch(e) {
+    // Fallback a localStorage
+    const raw = localStorage.getItem('snapnotes_v2');
+    if (raw) { try { data = JSON.parse(raw); } catch(e2) {} }
+    seedIfEmpty();
+    setSyncStatus('error');
+    showToast('⚠️ Sin conexión a la nube. Usando datos locales.');
+  }
+  if (!data.snippets)   data.snippets = [];
+  if (!data.categories) data.categories = ['General','Prompts','Trabajo','Personal','Dev'];
+  render();
+}
+
+function seedIfEmpty() {
+  if (!data.snippets) data.snippets = [];
+  if (!data.categories) data.categories = ['General','Prompts','Trabajo','Personal','Dev'];
+  if (data.snippets.length === 0) {
+    data.snippets = [
+      { id:uid(), title:'Prompt: resumen ejecutivo', content:'Por favor, resume el siguiente texto en máximo 5 puntos clave, en lenguaje claro y directo:\n\n[PEGAR TEXTO AQUÍ]', cat:'Prompts', tag:'IA', pinned:true,  created:Date.now()-86400000*3 },
+      { id:uid(), title:'Email de seguimiento',      content:'Asunto: Seguimiento – [tema]\n\nHola [Nombre],\n\nEspero que estés bien. Te escribo para dar seguimiento a nuestra conversación sobre [tema].\n\nQuedo atento a tus comentarios.\n\nSaludos,\n[Tu nombre]', cat:'Trabajo', tag:'email', pinned:false, created:Date.now()-86400000 },
+      { id:uid(), title:'Prompt: corrección de texto', content:'Corrige la ortografía, gramática y estilo del siguiente texto. Mantén el tono original:\n\n[TEXTO]', cat:'Prompts', tag:'IA', pinned:false, created:Date.now()-86400000*2 },
+      { id:uid(), title:'Snippet SQL básico',        content:'SELECT id, nombre, fecha_creacion\nFROM tabla\nWHERE activo = 1\nORDER BY fecha_creacion DESC\nLIMIT 50;', cat:'Dev', tag:'SQL', pinned:false, created:Date.now()-3600000 },
+      { id:uid(), title:'Mis datos de contacto',     content:'Nombre: \nEmail: \nTeléfono: \nCiudad: Bogotá', cat:'Personal', tag:'info', pinned:true,  created:Date.now()-86400000*5 },
+    ];
+  }
+}
+
+// ── RENDER ──
+function render() { renderSidebar(); renderGrid(); }
+
+function renderSidebar() {
+  document.getElementById('cnt-all').textContent    = data.snippets.length;
+  document.getElementById('cnt-pinned').textContent = data.snippets.filter(s=>s.pinned).length;
+  const catList = document.getElementById('catList');
+  catList.innerHTML = '';
+  data.categories.forEach(cat => {
+    const count = data.snippets.filter(s=>s.cat===cat).length;
+    const div = document.createElement('div');
+    div.className = 'cat-item' + (currentCat===cat?' active':'');
+    div.dataset.cat = cat;
+    div.onclick = () => selectCat(div, cat);
+    div.innerHTML = `<span class="cat-icon">${getCatIcon(cat)}</span>${cat}<span class="cat-count">${count}</span>`;
+    catList.appendChild(div);
+  });
+  const fCat = document.getElementById('fCat');
+  const cur = fCat.value;
+  fCat.innerHTML = data.categories.map(c=>`<option value="${c}">${c}</option>`).join('');
+  if (cur) fCat.value = cur;
+}
+
+function renderGrid() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  let items = [...data.snippets];
+  if (currentCat==='pinned') items = items.filter(s=>s.pinned);
+  else if (currentCat!=='all') items = items.filter(s=>s.cat===currentCat);
+  if (q) items = items.filter(s=>
+    s.title.toLowerCase().includes(q)||
+    s.content.toLowerCase().includes(q)||
+    (s.tag&&s.tag.toLowerCase().includes(q))||
+    s.cat.toLowerCase().includes(q)
+  );
+  if (currentSort==='alpha')  items.sort((a,b)=>a.title.localeCompare(b.title));
+  else if (currentSort==='oldest') items.sort((a,b)=>a.created-b.created);
+  else items.sort((a,b)=>{ if(a.pinned!==b.pinned) return a.pinned?-1:1; return b.created-a.created; });
+
+  document.getElementById('countLabel').textContent = items.length+' snippet'+(items.length!==1?'s':'');
+  const grid = document.getElementById('snippetsGrid');
+  if (items.length===0) {
+    grid.innerHTML=`<div class="empty-state"><div class="big-icon">🔍</div><h3>${q?'Sin resultados':'Sin snippets aquí'}</h3><p>${q?'Intenta con otros términos.':'Crea uno con el botón "+ Nuevo".'}</p></div>`;
+    return;
+  }
+  grid.innerHTML = items.map(s=>{
+    const date = new Date(s.created).toLocaleDateString('es-CO',{day:'2-digit',month:'short'});
+    const tagHtml = s.tag?`<span class="tag-pill ${getCatColor(s.cat)}">${s.tag}</span>`:'';
+    const catHtml = `<span class="tag-pill cat-general" style="background:rgba(255,255,255,0.06);color:var(--text3);">${s.cat}</span>`;
+    return `<div class="snippet-card${s.pinned?' pinned':''}" onclick="viewSnippet('${s.id}')">
+      ${s.pinned?'<div class="pin-badge">📌</div>':''}
+      <div class="card-header">
+        <div class="card-title">${esc(s.title)}</div>
+        <div class="card-actions">
+          <button class="card-action-btn" title="${s.pinned?'Desfijar':'Fijar'}" onclick="event.stopPropagation();togglePin('${s.id}')">${s.pinned?'📌':'📍'}</button>
+          <button class="card-action-btn" title="Copiar" onclick="event.stopPropagation();quickCopy('${s.id}')">📋</button>
+          <button class="card-action-btn" title="Editar" onclick="event.stopPropagation();openEdit('${s.id}')">✏️</button>
+        </div>
+      </div>
+      <div class="card-content">${esc(s.content)}</div>
+      <div class="card-footer">${catHtml}${tagHtml}<span class="card-date">${date}</span></div>
+    </div>`;
+  }).join('');
+}
+
+// ── ACCIONES ──
+function selectCat(el, cat) {
+  document.querySelectorAll('.cat-item').forEach(e=>e.classList.remove('active'));
+  el.classList.add('active');
+  currentCat = cat; renderGrid();
+}
+function setSort(el, sort) {
+  document.querySelectorAll('.filter-tab').forEach(e=>e.classList.remove('active'));
+  el.classList.add('active');
+  currentSort = sort; renderGrid();
+}
+function openNew() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'Nuevo snippet';
+  document.getElementById('fTitle').value = '';
+  document.getElementById('fContent').value = '';
+  document.getElementById('fCat').value = (currentCat!=='all'&&currentCat!=='pinned')?currentCat:'General';
+  document.getElementById('fTag').value = '';
+  document.getElementById('deleteBtn').style.display = 'none';
+  document.getElementById('editModal').classList.add('open');
+  setTimeout(()=>document.getElementById('fTitle').focus(),80);
+}
+function openEdit(id) {
+  const s = data.snippets.find(x=>x.id===id); if(!s) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Editar snippet';
+  document.getElementById('fTitle').value   = s.title;
+  document.getElementById('fContent').value = s.content;
+  document.getElementById('fCat').value     = s.cat;
+  document.getElementById('fTag').value     = s.tag||'';
+  document.getElementById('deleteBtn').style.display = 'block';
+  document.getElementById('editModal').classList.add('open');
+}
+function editFromView() { closeModal('viewModal'); if(viewingId) openEdit(viewingId); }
+function saveSnippet() {
+  const title   = document.getElementById('fTitle').value.trim();
+  const content = document.getElementById('fContent').value.trim();
+  const cat     = document.getElementById('fCat').value;
+  const tag     = document.getElementById('fTag').value.trim();
+  if (!title||!content) { showToast('⚠️ Título y contenido son requeridos'); return; }
+  if (editingId) {
+    const s = data.snippets.find(x=>x.id===editingId);
+    if(s) { s.title=title; s.content=content; s.cat=cat; s.tag=tag; }
+  } else {
+    data.snippets.push({ id:uid(), title, content, cat, tag, pinned:false, created:Date.now() });
+  }
+  save(); render(); closeModal('editModal'); showToast('✅ Guardado');
+}
+function deleteSnippet() {
+  if (!editingId) return;
+  if (!confirm('¿Eliminar este snippet?')) return;
+  data.snippets = data.snippets.filter(s=>s.id!==editingId);
+  save(); render(); closeModal('editModal'); showToast('🗑 Eliminado');
+}
+function togglePin(id) {
+  const s = data.snippets.find(x=>x.id===id);
+  if(s) { s.pinned=!s.pinned; save(); render(); }
+}
+function quickCopy(id) {
+  const s = data.snippets.find(x=>x.id===id); if(!s) return;
+  navigator.clipboard.writeText(s.content).then(()=>showToast('📋 Copiado al portapapeles'));
+}
+function viewSnippet(id) {
+  const s = data.snippets.find(x=>x.id===id); if(!s) return;
+  viewingId = id;
+  document.getElementById('viewTitle').textContent = s.title;
+  document.getElementById('viewContent').textContent = s.content;
+  const date = new Date(s.created).toLocaleDateString('es-CO',{dateStyle:'long'});
+  document.getElementById('viewMeta').innerHTML =
+    `<span class="tag-pill ${getCatColor(s.cat)}">${getCatIcon(s.cat)} ${s.cat}</span>`+
+    (s.tag?`<span class="tag-pill cat-general" style="background:rgba(255,255,255,0.06);color:var(--text2);">${s.tag}</span>`:'')+
+    `<span style="font-size:11px;color:var(--text3);margin-left:4px;">📅 ${date}</span>`;
+  document.getElementById('copySuccess').classList.remove('show');
+  document.getElementById('viewModal').classList.add('open');
+}
+function copyView() {
+  const s = data.snippets.find(x=>x.id===viewingId); if(!s) return;
+  navigator.clipboard.writeText(s.content).then(()=>{
+    const el = document.getElementById('copySuccess');
+    el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2000);
+  });
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function addCategory() {
+  const name = prompt('Nombre de la nueva categoría:');
+  if (!name||!name.trim()) return;
+  const n = name.trim();
+  if (data.categories.includes(n)) { showToast('⚠️ Ya existe esa categoría'); return; }
+  data.categories.push(n); save(); renderSidebar(); showToast('✅ Categoría "'+n+'" creada');
+}
+
+// ── BACKUP ──
+function exportData() {
+  const blob = new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'snapnotes_backup_'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); showToast('📤 Backup exportado');
+}
+function importData() { document.getElementById('importFile').click(); }
+function handleImport(e) {
+  const file = e.target.files[0]; if(!file) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const imp = JSON.parse(ev.target.result);
+      if (!imp.snippets) throw new Error();
+      const nuevo = imp.snippets.filter(ns=>!data.snippets.find(s=>s.id===ns.id));
+      data.snippets.push(...nuevo);
+      if (imp.categories) imp.categories.forEach(c=>{ if(!data.categories.includes(c)) data.categories.push(c); });
+      save(); render(); showToast(`📥 ${nuevo.length} snippet(s) importados`);
+    } catch { showToast('❌ Archivo inválido'); }
+  };
+  r.readAsText(file); e.target.value='';
+}
+
+// ── TOAST ──
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+// ── TECLADO ──
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey||e.metaKey)&&e.key==='k') { e.preventDefault(); document.getElementById('searchInput').focus(); document.getElementById('searchInput').select(); }
+  if (e.key==='Escape') { closeModal('editModal'); closeModal('viewModal'); document.getElementById('searchInput').blur(); }
+  if ((e.ctrlKey||e.metaKey)&&e.key==='n') { e.preventDefault(); openNew(); }
+});
+document.getElementById('searchInput').addEventListener('input', renderGrid);
+document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); }));
+
+
+// ── SETUP ──
+function checkSetup() {
+  const key = localStorage.getItem('snapnotes_jbkey');
+  if (!key) {
+    document.getElementById('setupModal').classList.add('open');
+  } else {
+    load();
+  }
+}
+function saveSetup() {
+  const key = document.getElementById('setupKey').value.trim();
+  if (!key.startsWith('$2a$')) { showToast('⚠️ API Key inválida'); return; }
+  localStorage.setItem('snapnotes_jbkey', key);
+  document.getElementById('setupModal').classList.remove('open');
+  load();
+}
+function skipSetup() {
+  document.getElementById('setupModal').classList.remove('open');
+  // Sin nube: solo localStorage
+  const raw = localStorage.getItem('snapnotes_v2');
+  if (raw) { try { data = JSON.parse(raw); } catch(e) {} }
+  seedIfEmpty();
+  render();
+  setSyncStatus('error');
+}
+
+// ── INICIO ──
+checkSetup();
+</script>
+</body>
+</html>
