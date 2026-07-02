@@ -495,38 +495,87 @@ function setSort(el, sort) {
   el.classList.add('active');
   currentSort = sort; renderGrid();
 }
+// ── TYPE TOGGLE ──
+let currentType = 'text';
+let editItems = [];
+
+function setType(t) {
+  currentType = t;
+  document.getElementById('typeText').classList.toggle('active', t==='text');
+  document.getElementById('typeCheck').classList.toggle('active', t==='checklist');
+  document.getElementById('contentGroup').style.display = t==='text' ? '' : 'none';
+  document.getElementById('checklistGroup').style.display = t==='checklist' ? '' : 'none';
+}
+
+function addItem() {
+  const inp = document.getElementById('newItemInput');
+  const val = inp.value.trim();
+  if (!val) return;
+  editItems.push(val);
+  inp.value = '';
+  renderItemsEditor();
+  inp.focus();
+}
+
+function removeItem(i) {
+  editItems.splice(i,1);
+  renderItemsEditor();
+}
+
+function renderItemsEditor() {
+  document.getElementById('itemsEditor').innerHTML = editItems.map((it,i) =>
+    `<div style="display:flex;align-items:center;gap:8px;background:var(--surface2);border-radius:var(--radius-sm);padding:6px 10px;">
+      <span style="flex:1;font-size:13px;color:var(--text);">☐ ${esc(it)}</span>
+      <button onclick="removeItem(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;">✕</button>
+    </div>`
+  ).join('');
+}
+
 function openNew() {
   editingId = null;
+  currentType = 'text';
+  editItems = [];
   document.getElementById('modalTitle').textContent = 'Nuevo snippet';
   document.getElementById('fTitle').value = '';
   document.getElementById('fContent').value = '';
   document.getElementById('fCat').value = (currentCat!=='all'&&currentCat!=='pinned')?currentCat:'General';
   document.getElementById('fTag').value = '';
   document.getElementById('deleteBtn').style.display = 'none';
+  document.querySelector('#editModal .btn-primary').setAttribute('onclick','saveSnippet()');
+  setType('text');
+  renderItemsEditor();
   document.getElementById('editModal').classList.add('open');
   setTimeout(()=>document.getElementById('fTitle').focus(),80);
 }
+
 function openEdit(id) {
   const s = data.snippets.find(x=>x.id===id); if(!s) return;
   editingId = id;
+  currentType = s.type || 'text';
+  editItems = s.type==='checklist' ? [...(s.items||[])] : [];
   document.getElementById('modalTitle').textContent = 'Editar snippet';
   document.getElementById('fTitle').value   = s.title;
-  document.getElementById('fContent').value = s.content;
+  document.getElementById('fContent').value = s.content||'';
   document.getElementById('fCat').value     = s.cat;
   document.getElementById('fTag').value     = s.tag||'';
   document.getElementById('deleteBtn').style.display = 'block';
+  document.querySelector('#editModal .btn-primary').setAttribute('onclick','saveSnippet()');
+  setType(currentType);
+  renderItemsEditor();
   document.getElementById('editModal').classList.add('open');
 }
 function editFromView() { closeModal('viewModal'); if(viewingId) openEdit(viewingId); }
 function saveSnippet() {
   const title   = document.getElementById('fTitle').value.trim();
-  const content = document.getElementById('fContent').value.trim();
   const cat     = document.getElementById('fCat').value;
   const tag     = document.getElementById('fTag').value.trim();
-  if (!title||!content) { showToast('⚠️ Título y contenido son requeridos'); return; }
+  if (!title) { showToast('⚠️ El título es requerido'); return; }
+  if (currentType==='checklist' && editItems.length===0) { showToast('⚠️ Agrega al menos un ítem'); return; }
+  const textContent = document.getElementById('fContent').value.trim();
+  if (currentType==='text' && !textContent) { showToast('⚠️ El contenido es requerido'); return; }
   if (editingId) {
     const s = data.snippets.find(x=>x.id===editingId);
-    if(s) { s.title=title; s.content=content; s.cat=cat; s.tag=tag; }
+    if(s) { s.title=title; s.content=textContent; s.cat=cat; s.tag=tag; s.type=currentType; s.items=currentType==='checklist'?[...editItems]:[]; }
   } else {
     data.snippets.push({ id:uid(), title, content, cat, tag, pinned:false, created:Date.now() });
   }
