@@ -121,6 +121,33 @@
   .cat-personal { background: rgba(251,191,36,0.1); color: #fbbf24; }
   .cat-dev { background: rgba(56,189,248,0.1); color: #38bdf8; }
   .cat-custom { background: rgba(248,113,113,0.1); color: #f87171; }
+
+  /* CHECKLIST */
+  .checklist-items { display: flex; flex-direction: column; gap: 4px; }
+  .checklist-item { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; }
+  .checklist-item input[type=checkbox] { width: 15px; height: 15px; margin-top: 2px; flex-shrink: 0; accent-color: var(--accent); cursor: pointer; }
+  .checklist-item label { font-size: 13px; color: var(--text); line-height: 1.5; cursor: pointer; transition: color 0.15s; }
+  .checklist-item input:checked + label { color: var(--text3); text-decoration: line-through; }
+  .checklist-preview { display: flex; flex-direction: column; gap: 3px; }
+  .checklist-preview-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+  .checklist-preview-item .chk-icon { font-size: 11px; }
+  .checklist-progress { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .progress-bar { height: 3px; background: var(--surface3); border-radius: 10px; margin-top: 4px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 10px; transition: width 0.3s; }
+  .add-item-row { display: flex; gap: 8px; margin-top: 6px; }
+  .type-toggle { display: flex; gap: 6px; }
+  .type-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text2); border-radius: var(--radius-sm); padding: 5px 12px; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .type-btn.active { background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent2); }
+  /* CHECKLIST TAB */
+  .tab-bar { display: flex; border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
+  .tab-btn { padding: 10px 18px; font-size: 13px; color: var(--text2); background: none; border: none; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.15s; }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+  .tab-panel.active { display: flex; }
+  .checklists-grid { flex: 1; overflow-y: auto; padding: 14px 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap: 10px; align-content: start; }
+  .checklists-grid::-webkit-scrollbar { width: 5px; }
+  .checklists-grid::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 10px; }
 </style>
 </head>
 <body>
@@ -190,12 +217,27 @@
     </div>
     <div class="modal-body">
       <div class="form-group">
+        <label class="form-label">Tipo</label>
+        <div class="type-toggle">
+          <button class="type-btn active" id="typeText" onclick="setType('text')">📝 Texto</button>
+          <button class="type-btn" id="typeCheck" onclick="setType('checklist')">✅ Checklist</button>
+        </div>
+      </div>
+      <div class="form-group">
         <label class="form-label">Título *</label>
         <input type="text" class="form-input" id="fTitle" placeholder="Ej: Prompt de resumen">
       </div>
-      <div class="form-group">
+      <div class="form-group" id="contentGroup">
         <label class="form-label">Contenido *</label>
         <textarea class="form-textarea" id="fContent" placeholder="Escribe o pega aquí tu texto, prompt o información..."></textarea>
+      </div>
+      <div class="form-group" id="checklistGroup" style="display:none;">
+        <label class="form-label">Ítems de la checklist</label>
+        <div id="itemsEditor" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+        <div class="add-item-row">
+          <input type="text" class="form-input" id="newItemInput" placeholder="Nuevo ítem..." onkeydown="if(event.key==='Enter')addItem()">
+          <button class="btn-secondary" onclick="addItem()" style="white-space:nowrap;">＋ Agregar</button>
+        </div>
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -234,6 +276,19 @@
     </div>
   </div>
 </div>
+
+</div><!-- end tab snippets -->
+
+<!-- TAB: CHECKLISTS -->
+<div class="tab-panel" id="tab-checklists" style="flex:1;overflow:hidden;display:none;flex-direction:column;">
+  <div class="main-toolbar" style="display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);">
+    <span style="font-size:13px;color:var(--text2);" id="clCountLabel"></span>
+    <button class="btn-primary" style="margin-left:auto;" onclick="openNewChecklist()">＋ Nueva checklist</button>
+  </div>
+  <div class="checklists-grid" id="checklistsGrid"></div>
+</div>
+
+</div><!-- end tab wrapper -->
 
 <!-- SETUP MODAL -->
 <div class="modal-overlay" id="setupModal" style="z-index:200;">
@@ -564,8 +619,154 @@ document.getElementById('searchInput').addEventListener('input', renderGrid);
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{ if(e.target===o) o.classList.remove('open'); }));
 
 
+
+// ── CHECKLISTS (pestaña separada) ──
+let clData = { lists: [] };
+
+function saveCL() {
+  localStorage.setItem('snapnotes_cl', JSON.stringify(clData));
+}
+function loadCL() {
+  const raw = localStorage.getItem('snapnotes_cl');
+  if (raw) { try { clData = JSON.parse(raw); } catch(e) {} }
+  if (!clData.lists) clData.lists = [];
+}
+
+function renderChecklistsTab() {
+  const grid = document.getElementById('checklistsGrid');
+  const lists = clData.lists;
+  document.getElementById('clCountLabel').textContent = lists.length + ' checklist' + (lists.length!==1?'s':'');
+  if (lists.length === 0) {
+    grid.innerHTML = `<div class="empty-state"><div class="big-icon">✅</div><h3>Sin checklists</h3><p>Crea una nueva checklist con el botón "+ Nueva checklist".</p></div>`;
+    return;
+  }
+  grid.innerHTML = lists.map(cl => {
+    const total = cl.items.length;
+    const done = cl.checked ? cl.checked.filter(Boolean).length : 0;
+    const pct = total > 0 ? Math.round(done/total*100) : 0;
+    const itemsHtml = cl.items.slice(0,5).map((it,i) => {
+      const checked = cl.checked && cl.checked[i];
+      return `<div class="checklist-preview-item">
+        <span class="chk-icon">${checked?'✅':'☐'}</span>
+        <span style="${checked?'text-decoration:line-through;color:var(--text3)':''}">${esc(it)}</span>
+      </div>`;
+    }).join('');
+    const more = total > 5 ? `<div style="font-size:11px;color:var(--text3);">+${total-5} más</div>` : '';
+    return `<div class="snippet-card" onclick="openViewCL('${cl.id}')">
+      <div class="card-header">
+        <div class="card-title">✅ ${esc(cl.title)}</div>
+        <div class="card-actions">
+          <button class="card-action-btn" title="Editar" onclick="event.stopPropagation();openEditCL('${cl.id}')">✏️</button>
+          <button class="card-action-btn" title="Eliminar" onclick="event.stopPropagation();deleteCL('${cl.id}')">🗑</button>
+        </div>
+      </div>
+      <div class="checklist-preview">${itemsHtml}${more}</div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+      <div class="checklist-progress">${done}/${total} completados (${pct}%)</div>
+    </div>`;
+  }).join('');
+}
+
+function openNewChecklist() {
+  editingId = null;
+  currentType = 'checklist';
+  editItems = [];
+  document.getElementById('modalTitle').textContent = 'Nueva checklist';
+  document.getElementById('fTitle').value = '';
+  document.getElementById('fCat').value = 'General';
+  document.getElementById('fTag').value = '';
+  document.getElementById('deleteBtn').style.display = 'none';
+  setType('checklist');
+  renderItemsEditor();
+  // Override save to go to CL tab
+  document.querySelector('#editModal .btn-primary').setAttribute('onclick','saveAsCL()');
+  document.getElementById('editModal').classList.add('open');
+  setTimeout(() => document.getElementById('fTitle').focus(), 80);
+}
+
+function saveAsCL() {
+  const title = document.getElementById('fTitle').value.trim();
+  if (!title) { showToast('⚠️ El título es requerido'); return; }
+  if (editItems.length === 0) { showToast('⚠️ Agrega al menos un ítem'); return; }
+  if (editingId) {
+    const cl = clData.lists.find(x=>x.id===editingId);
+    if (cl) { cl.title=title; cl.items=[...editItems]; cl.checked=cl.checked?cl.checked.slice(0,editItems.length).concat(new Array(Math.max(0,editItems.length-cl.checked.length)).fill(false)):new Array(editItems.length).fill(false); }
+  } else {
+    clData.lists.push({ id:uid(), title, items:[...editItems], checked:new Array(editItems.length).fill(false), created:Date.now() });
+  }
+  saveCL(); renderChecklistsTab();
+  closeModal('editModal');
+  document.querySelector('#editModal .btn-primary').setAttribute('onclick','saveSnippet()');
+  showToast('✅ Checklist guardada');
+}
+
+function openEditCL(id) {
+  const cl = clData.lists.find(x=>x.id===id);
+  if (!cl) return;
+  editingId = id;
+  editItems = [...cl.items];
+  document.getElementById('modalTitle').textContent = 'Editar checklist';
+  document.getElementById('fTitle').value = cl.title;
+  document.getElementById('fCat').value = 'General';
+  document.getElementById('fTag').value = '';
+  document.getElementById('deleteBtn').style.display = 'block';
+  setType('checklist');
+  renderItemsEditor();
+  document.querySelector('#editModal .btn-primary').setAttribute('onclick','saveAsCL()');
+  document.getElementById('editModal').classList.add('open');
+}
+
+function deleteCL(id) {
+  if (!confirm('¿Eliminar esta checklist?')) return;
+  clData.lists = clData.lists.filter(x=>x.id!==id);
+  saveCL(); renderChecklistsTab();
+  showToast('🗑 Eliminada');
+}
+
+function openViewCL(id) {
+  const cl = clData.lists.find(x=>x.id===id);
+  if (!cl) return;
+  viewingId = 'cl_'+id;
+  document.getElementById('viewTitle').textContent = '✅ '+cl.title;
+  document.getElementById('viewMeta').innerHTML = `<span style="font-size:11px;color:var(--text3);">📋 ${cl.items.length} ítems</span>`;
+  document.getElementById('viewContent').innerHTML = `<div class="checklist-items">${cl.items.map((it,i)=>
+    `<div class="checklist-item">
+      <input type="checkbox" id="clv_${i}" ${cl.checked&&cl.checked[i]?'checked':''} onchange="toggleCLItem('${id}',${i},this.checked)">
+      <label for="clv_${i}">${esc(it)}</label>
+    </div>`).join('')}</div>`;
+  document.getElementById('copyBtn').style.display='none';
+  document.getElementById('copySuccess').classList.remove('show');
+  document.getElementById('viewModal').classList.add('open');
+}
+
+function toggleCLItem(id, i, val) {
+  const cl = clData.lists.find(x=>x.id===id);
+  if (!cl) return;
+  if (!cl.checked) cl.checked = new Array(cl.items.length).fill(false);
+  cl.checked[i] = val;
+  saveCL(); renderChecklistsTab();
+}
+
+function switchTab(tab, el) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  const snippetsPanel = document.querySelector('.app-body');
+  const clPanel = document.getElementById('tab-checklists');
+  if (tab === 'snippets') {
+    snippetsPanel.style.display = 'flex';
+    clPanel.style.display = 'none';
+  } else {
+    snippetsPanel.style.display = 'none';
+    clPanel.style.display = 'flex';
+    renderChecklistsTab();
+  }
+  // Reset save button when switching tabs
+  document.querySelector('#editModal .btn-primary').setAttribute('onclick','saveSnippet()');
+}
+
 // ── SETUP ──
 function checkSetup() {
+  loadCL();
   const key = localStorage.getItem('snapnotes_jbkey');
   if (!key) {
     document.getElementById('setupModal').classList.add('open');
