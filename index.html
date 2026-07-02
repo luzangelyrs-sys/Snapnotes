@@ -471,14 +471,14 @@ function renderGrid() {
     return `<div class="snippet-card${s.pinned?' pinned':''}" onclick="viewSnippet('${s.id}')">
       ${s.pinned?'<div class="pin-badge">📌</div>':''}
       <div class="card-header">
-        <div class="card-title">${esc(s.title)}</div>
+        <div class="card-title">${s.type==='checklist'?'✅ ':''} ${esc(s.title)}</div>
         <div class="card-actions">
           <button class="card-action-btn" title="${s.pinned?'Desfijar':'Fijar'}" onclick="event.stopPropagation();togglePin('${s.id}')">${s.pinned?'📌':'📍'}</button>
           <button class="card-action-btn" title="Copiar" onclick="event.stopPropagation();quickCopy('${s.id}')">📋</button>
           <button class="card-action-btn" title="Editar" onclick="event.stopPropagation();openEdit('${s.id}')">✏️</button>
         </div>
       </div>
-      <div class="card-content">${esc(s.content)}</div>
+      ${(()=>{ const isCL=s.type==='checklist'; if(isCL){const items=s.items||[];const rows=items.slice(0,4).map(it=>`<div class="checklist-preview-item"><span class="chk-icon">☐</span><span>${esc(it)}</span></div>`).join('');const more=items.length>4?`<div style="font-size:11px;color:var(--text3);">+${items.length-4} más</div>`:'';return `<div class="checklist-preview">${rows||'<span style="color:var(--text3);font-size:12px;">Sin ítems</span>'}${more}</div>`;} return `<div class="card-content">${esc(s.content)}</div>`; })()}
       <div class="card-footer">${catHtml}${tagHtml}<span class="card-date">${date}</span></div>
     </div>`;
   }).join('');
