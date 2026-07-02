@@ -577,7 +577,7 @@ function saveSnippet() {
     const s = data.snippets.find(x=>x.id===editingId);
     if(s) { s.title=title; s.content=textContent; s.cat=cat; s.tag=tag; s.type=currentType; s.items=currentType==='checklist'?[...editItems]:[]; }
   } else {
-    data.snippets.push({ id:uid(), title, content, cat, tag, pinned:false, created:Date.now() });
+    data.snippets.push({ id:uid(), title, content:textContent, cat, tag, type:currentType, items:currentType==='checklist'?[...editItems]:[], pinned:false, created:Date.now() });
   }
   save(); render(); closeModal('editModal'); showToast('✅ Guardado');
 }
@@ -598,13 +598,26 @@ function quickCopy(id) {
 function viewSnippet(id) {
   const s = data.snippets.find(x=>x.id===id); if(!s) return;
   viewingId = id;
-  document.getElementById('viewTitle').textContent = s.title;
-  document.getElementById('viewContent').textContent = s.content;
+  document.getElementById('viewTitle').textContent = (s.type==='checklist'?'✅ ':'')+s.title;
   const date = new Date(s.created).toLocaleDateString('es-CO',{dateStyle:'long'});
   document.getElementById('viewMeta').innerHTML =
     `<span class="tag-pill ${getCatColor(s.cat)}">${getCatIcon(s.cat)} ${s.cat}</span>`+
     (s.tag?`<span class="tag-pill cat-general" style="background:rgba(255,255,255,0.06);color:var(--text2);">${s.tag}</span>`:'')+
     `<span style="font-size:11px;color:var(--text3);margin-left:4px;">📅 ${date}</span>`;
+  const vcEl = document.getElementById('viewContent');
+  const copyBtn = document.getElementById('copyBtn');
+  if (s.type === 'checklist') {
+    const items = s.items || [];
+    vcEl.innerHTML = `<div class="checklist-items">${items.map((it,i)=>
+      `<div class="checklist-item">
+        <input type="checkbox" id="cli_${i}">
+        <label for="cli_${i}">${esc(it)}</label>
+      </div>`).join('')}</div>`;
+    copyBtn.style.display = 'none';
+  } else {
+    vcEl.textContent = s.content;
+    copyBtn.style.display = '';
+  }
   document.getElementById('copySuccess').classList.remove('show');
   document.getElementById('viewModal').classList.add('open');
 }
